@@ -1,0 +1,18 @@
+# Naše úkoly – nasazení na NAS
+# Složka na NASu: /volume2/docker/ukoly/  (tento soubor + podsložka data/)
+
+services:
+  ukoly:
+    image: ghcr.io/gajzlervojtech/ukoly:latest
+    container_name: ukoly
+    restart: unless-stopped
+    ports:
+      - "3200:3000"            # aplikace pak běží na http://IP-NASu:3200
+    environment:
+      TZ: Europe/Prague
+      BACKUP_DIR: /backup      # měsíční záloha databáze
+      BACKUP_EVERY_DAYS: "30"
+      BACKUP_KEEP: "6"
+    volumes:
+      - ./data:/data                          # databáze ukoly.db
+      - /volume1/Zalohy/ukoly:/backup         # ← složka na RAID 1 (musí existovat)
