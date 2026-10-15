@@ -6,6 +6,7 @@ import { usePolling, useApp } from '../store';
 import { GROUPS, dueGroup, dueLabel, longToday, todayStr } from '../dates';
 import { CardTabs, Check } from '../components/ui';
 import ItemSheet from '../components/ItemSheet';
+import { deviceId } from '../native';
 
 const TILES = ['tile-blue', 'tile-orange', 'tile-green', 'tile-pink'];
 
@@ -112,7 +113,7 @@ export default function CardPage() {
     const title = text.trim();
     if (!title) { setSheet({ item: null, initial: { variant } }); return; }
     try {
-      await api.post(`/cards/${id}/items`, card.preset === 'media' ? { title, variant } : { title });
+      await api.post(`/cards/${id}/items`, card.preset === 'media' ? { title, variant, device: deviceId() } : { title, device: deviceId() });
       setText('');
       reload();
     } catch (err) {

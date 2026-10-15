@@ -15,6 +15,14 @@ function today(date = new Date()) {
   return new Intl.DateTimeFormat('sv-SE', { timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit' }).format(date);
 }
 
+// Místní čas domácnosti jako „YYYY-MM-DDTHH:MM“ (telefon podle něj plánuje upozornění).
+function localNow(date = new Date()) {
+  const s = new Intl.DateTimeFormat('sv-SE', {
+    timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+  }).format(date);
+  return s.replace(' ', 'T');
+}
+
 const isDate = (s) => typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s) && !Number.isNaN(Date.parse(`${s}T00:00:00Z`));
 const isTime = (s) => typeof s === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(s);
 const isColor = (s) => typeof s === 'string' && /^#[0-9a-fA-F]{6}$/.test(s);
@@ -189,9 +197,10 @@ function createItem(cardId, body) {
   getCard(cardId);
   const f = itemFields(body, false);
   const t = now();
-  const info = db.prepare(`INSERT INTO items (card_id, title, note, variant, due_date, due_time, remind, done, done_at, created_at, updated_at)
-    VALUES (@card_id, @title, @note, @variant, @due_date, @due_time, @remind, @done, @done_at, @t, @t)`).run({
+  const info = db.prepare(`INSERT INTO items (card_id, title, note, variant, due_date, due_time, remind, done, done_at, device, created_at, updated_at)
+    VALUES (@card_id, @title, @note, @variant, @due_date, @due_time, @remind, @done, @done_at, @device, @t, @t)`).run({
     card_id: cardId,
+    device: String(body.device || '').slice(0, 64),
     title: f.title,
     note: f.note ?? '',
     variant: f.variant ?? '',
@@ -240,22 +249,24 @@ function digest(date = today()) {
   const map = (r) => ({ ...itemRow(r), card_name: r.card_name, card_color: r.card_color });
   const overdue = rows.filter((r) => r.due_date < date).map(map);
   const todayItems = rows.filter((r) => r.due_date === date).map(map);
-  return { date, overdue, today: todayItems };
+  return { date, now: localNow(), overdue, today: todayItems };
 }
 
 // Položky přidané po daném okamžiku (telefon podle toho ukáže „přibylo…“).
-function changes(since) {
+// excludeDevice = vlastní položky telefonu se nevrací.
+function changes(since, excludeDevice = '') {
   const t = now();
   if (!since || Number.isNaN(Date.parse(since))) return { now: t, added: [] };
   const added = db.prepare(`
-    SELECT i.*, c.name AS card_name FROM items i JOIN cards c ON c.id = i.card_id
-    WHERE i.created_at > ? ORDER BY i.created_at`).all(new Date(since).toISOString())
-    .map((r) => ({ ...itemRow(r), card_name: r.card_name }));
+    SELECT i.*, c.name AS card_name, c.preset AS card_preset FROM items i JOIN cards c ON c.id = i.card_id
+    WHERE i.created_at > ? AND (? = '' OR i.device != ?) ORDER BY i.created_at`)
+    .all(new Date(since).toISOString(), excludeDevice, excludeDevice)
+    .map((r) => ({ ...itemRow(r), card_name: r.card_name, card_preset: r.card_preset }));
   return { now: t, added };
 }
 
 module.exports = {
-  today, isDate, isTime,
+  today, localNow, isDate, isTime,
   listCards, getCard, createCard, updateCard, deleteCard, reorderCards,
   listItems, getItem, createItem, updateItem, deleteItem, clearDone,
   digest, changes,

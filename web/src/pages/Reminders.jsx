@@ -1,48 +1,55 @@
 import { useEffect, useState } from 'react';
-import { api, plural } from '../api';
+import { api, plural, serverBase } from '../api';
 import { Icon } from '../icons';
 import { useApp } from '../store';
 import { BackHead, Switch } from '../components/ui';
-
-// Nastavení připomínek je pro každý telefon zvlášť (uložené jen v zařízení).
-const KEY = 'ukoly.reminders';
-const DEFAULTS = { on: true, mins: 450, days: [true, true, true, true, true, true, true], today: true, overdue: true, added: true };
-
-function loadSettings() {
-  try { return { ...DEFAULTS, ...JSON.parse(localStorage.getItem(KEY) || '{}') }; } catch { return DEFAULTS; }
-}
+import {
+  BUILD, apkUrl, askNotifPermission, isNative, latestApp, loadReminders, notifPermission, openExternal, saveReminders,
+} from '../native';
 
 const fmt = (m) => `${Math.floor(m / 60)}:${String(m % 60).padStart(2, '0')}`;
 const DAY_LABELS = ['Po', 'Út', 'St', 'Čt', 'Pá', 'So', 'Ne'];
 
-// Text upozornění – stejný sestaví i Android aplikace.
+// Text upozornění – stejný sestavuje běh na pozadí v Android aplikaci (public/runners/check.js).
 export function digestText(d, s) {
   const parts = [];
   if (s.overdue && d.overdue.length) parts.push(`Po termínu: ${d.overdue.map((i) => i.title).join(', ')}.`);
   if (s.today && d.today.length) parts.push(`Dnes: ${d.today.map((i) => (i.due_time ? `${i.title} (${i.due_time})` : i.title)).join(', ')}.`);
   const n = (s.today ? d.today.length : 0) + (s.overdue ? d.overdue.length : 0);
-  const title = n
-    ? `Dobré ráno! ${s.today ? `Dnes ${d.today.length} ${plural(d.today.length, 'úkol', 'úkoly', 'úkolů')}` : `${n} ${plural(n, 'úkol', 'úkoly', 'úkolů')}`}`
-    : 'Dobré ráno! Dnes nic nehoří';
+  let title;
+  if (!n) title = 'Dobré ráno! Dnes nic nehoří';
+  else if (s.today && d.today.length) title = `Dobré ráno! Dnes ${d.today.length} ${plural(d.today.length, 'úkol', 'úkoly', 'úkolů')}`;
+  else title = `Dobré ráno! ${n} ${plural(n, 'úkol', 'úkoly', 'úkolů')} po termínu`;
   return { title, body: parts.join(' ') || 'Žádné úkoly s termínem na dnes.' };
 }
 
 export default function Reminders() {
   const { notify } = useApp();
-  const [s, setS] = useState(loadSettings);
+  const [s, setS] = useState(loadReminders);
   const [digest, setDigest] = useState(null);
   const [backup, setBackup] = useState(null);
+  const [perm, setPerm] = useState(null);
+  const [latest, setLatest] = useState(null);
 
   useEffect(() => {
     api.get('/digest').then(setDigest).catch(() => {});
     api.get('/backup').then(setBackup).catch(() => {});
+    if (isNative) {
+      notifPermission().then(setPerm);
+      latestApp().then(setLatest);
+    }
   }, []);
 
   const set = (patch) => setS((x) => {
     const n = { ...x, ...patch };
-    try { localStorage.setItem(KEY, JSON.stringify(n)); } catch { /* bez úložiště */ }
+    saveReminders(n);
     return n;
   });
+
+  async function allow() {
+    setPerm(await askNotifPermission());
+    saveReminders(s);
+  }
 
   async function runBackup() {
     try {
@@ -53,12 +60,20 @@ export default function Reminders() {
     }
   }
 
+  function changeServer() {
+    const v = window.prompt('Adresa serveru', serverBase());
+    if (v == null) return;
+    try { localStorage.setItem('ukoly.server', v.trim().replace(/\/+$/, '')); } catch { /* */ }
+    window.location.reload();
+  }
+
   const preview = digest ? digestText(digest, s) : null;
   const include = [
     { key: 'today', label: 'Úkoly s termínem na dnes' },
     { key: 'overdue', label: 'Úkoly po termínu' },
     { key: 'added', label: 'Nové položky ve Filmech a seriálech' },
   ];
+  const hasUpdate = isNative && latest && latest.versionCode > BUILD;
 
   return (
     <div className="page page-form">
@@ -76,14 +91,22 @@ export default function Reminders() {
           </div>
         </div>
 
-        <div className="info-note">
-          Upozornění bude zobrazovat Android aplikace. Nastavení platí jen pro tento telefon, takže každý může mít svůj čas.
-        </div>
+        {!isNative && (
+          <div className="info-note">
+            Upozornění zobrazuje Android aplikace. Stáhnout ji můžete na <a className="txt-link" href="/apk/ukoly.apk">/apk/ukoly.apk</a>.
+          </div>
+        )}
+        {isNative && perm && perm !== 'granted' && (
+          <div className="info-note warn">
+            <div>Aplikace zatím nesmí posílat upozornění.</div>
+            <button type="button" className="btn-small" onClick={allow}>Povolit upozornění</button>
+          </div>
+        )}
 
         <div className="row-between">
           <div className="row-text">
             <div className="row-title strong">Denní přehled</div>
-            <div className="row-sub">Jedno upozornění každý den</div>
+            <div className="row-sub">Jedno upozornění každý den · nastavení jen pro tento telefon</div>
           </div>
           <Switch checked={s.on} onChange={(v) => set({ on: v })} label="Denní přehled" />
         </div>
@@ -108,7 +131,7 @@ export default function Reminders() {
         </div>
 
         <div className="block">
-          <h3>Co v přehledu bude</h3>
+          <h3>Co hlásit</h3>
           <div className="checklist">
             {include.map((o) => (
               <button key={o.key} type="button" role="checkbox" aria-checked={s[o.key]} className="check-row"
@@ -118,7 +141,35 @@ export default function Reminders() {
               </button>
             ))}
           </div>
+          {isNative && (
+            <div className="row-sub">
+              Nové filmy se kontrolují zhruba každých 15 minut, když je zapnutý Tailscale. Aby přehled chodil přesně na minutu,
+              povolte v Nastavení Androidu → Aplikace → Úkoly → „Alarmy a připomenutí“.
+            </div>
+          )}
         </div>
+
+        {isNative && (
+          <div className="block">
+            <h3>Aplikace</h3>
+            <div className="row-between">
+              <div className="row-text">
+                <div className="row-title">Verze {BUILD || 'vývojová'}</div>
+                <div className="row-sub">
+                  {hasUpdate ? `K dispozici je verze ${latest.versionCode}` : (latest ? 'Máte nejnovější verzi' : 'Nepodařilo se zjistit novou verzi')}
+                </div>
+              </div>
+              {hasUpdate && <button type="button" className="btn-small" onClick={() => openExternal(apkUrl())}>Stáhnout</button>}
+            </div>
+            <div className="row-between">
+              <div className="row-text">
+                <div className="row-title">Server</div>
+                <div className="row-sub break">{serverBase()}</div>
+              </div>
+              <button type="button" className="link-btn" onClick={changeServer}>Změnit</button>
+            </div>
+          </div>
+        )}
 
         {backup && (
           <div className="block">

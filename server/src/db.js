@@ -49,6 +49,10 @@ const MIGRATIONS = [
   CREATE INDEX items_created ON items(created_at);
   CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT);
   `,
+  // v2 – které zařízení položku přidalo (telefon pak neupozorňuje na vlastní položky)
+  `
+  ALTER TABLE items ADD COLUMN device TEXT NOT NULL DEFAULT '';
+  `,
 ];
 
 function migrate() {

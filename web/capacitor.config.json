@@ -1,0 +1,18 @@
+{
+  "appId": "cz.gajzler.ukoly",
+  "appName": "Úkoly",
+  "webDir": "dist",
+  "android": {
+    "allowMixedContent": false
+  },
+  "plugins": {
+    "BackgroundRunner": {
+      "label": "cz.gajzler.ukoly.check",
+      "src": "runners/check.js",
+      "event": "check",
+      "repeat": true,
+      "interval": 15,
+      "autoStart": true
+    }
+  }
+}

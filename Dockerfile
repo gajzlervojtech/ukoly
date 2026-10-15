@@ -23,6 +23,8 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY server/package.json ./
 COPY server/src ./src
 COPY --from=web /src/public ./public
+# Android aplikace (sestaví GitHub Action; v repozitáři je jen version.json)
+COPY apk/ ./public/apk/
 VOLUME ["/data"]
 EXPOSE 3000
 HEALTHCHECK --interval=60s --timeout=5s --start-period=20s \

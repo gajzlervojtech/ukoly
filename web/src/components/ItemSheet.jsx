@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { api } from '../api';
 import { Icon } from '../icons';
 import { useApp } from '../store';
+import { deviceId } from '../native';
 import { dueLabel, quickDates, todayStr } from '../dates';
 import DatePicker from './DatePicker';
 import { Segmented, Sheet, Switch } from './ui';
@@ -35,7 +36,7 @@ export default function ItemSheet({ open, card, item, initial, onClose, onSaved 
     setBusy(true);
     try {
       if (item) await api.patch(`/items/${item.id}`, body);
-      else await api.post(`/cards/${card.id}/items`, body);
+      else await api.post(`/cards/${card.id}/items`, { ...body, device: deviceId() });
       onSaved();
       onClose();
     } catch (err) {

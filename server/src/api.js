@@ -26,7 +26,7 @@ router.delete('/items/:id', (req, res) => { store.deleteItem(id(req.params.id));
 
 // ---------- Pro telefon ----------
 router.get('/digest', (req, res) => res.json(store.digest(req.query.date || store.today())));
-router.get('/changes', (req, res) => res.json(store.changes(req.query.since)));
+router.get('/changes', (req, res) => res.json(store.changes(req.query.since, String(req.query.exclude_device || ''))));
 
 // ---------- Záloha ----------
 router.get('/backup', (req, res) => res.json(backup.status()));

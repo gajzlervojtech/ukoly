@@ -9,6 +9,9 @@ import '@fontsource/outfit/600.css';
 import './styles.css';
 import App from './App';
 import { AppProvider } from './store';
+import { initNative } from './native';
+
+initNative();
 
 createRoot(document.getElementById('root')).render(
   <React.StrictMode>

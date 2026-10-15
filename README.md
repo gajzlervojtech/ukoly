@@ -7,7 +7,7 @@ Sdílený seznam úkolů pro domácnost. Bez účtů – oba vidíme a upravujem
   - *Úkoly s termínem* – „do kdy“ (datum, volitelně čas), řazení do skupin Po termínu / Dnes / Tento týden / Později / Bez termínu.
   - *Jednoduchý seznam* – jen položky k odškrtnutí.
   - *Seznam s označením* – položka zůstává, jen se přepne (u filmů „Na NASu“).
-- **Připomínky:** server umí denní přehled (`/api/digest`) a seznam novinek (`/api/changes`). Upozornění na telefonu bude zobrazovat Android aplikace (další krok); nastavení času je pro každý telefon zvlášť.
+- **Android aplikace:** stejné rozhraní + denní přehled v nastavený čas a upozornění na nové filmy, které přidal někdo jiný. Nastavení připomínek je pro každý telefon zvlášť. APK sestaví GitHub Action a NAS ho nabízí ke stažení na `/apk/ukoly.apk` (i aktualizace).
 
 ## Co je na NASu
 
@@ -51,6 +51,31 @@ cd /volume2/docker/ukoly
 sudo docker compose pull && sudo docker compose up -d
 ```
 
+## Android aplikace
+
+### Jednou: klíč k podpisu (GitHub → Settings → Secrets and variables → Actions)
+| Secret | Obsah |
+|---|---|
+| `ANDROID_KEYSTORE_BASE64` | klíč `ukoly-podpis.jks` převedený do base64 |
+| `ANDROID_KEYSTORE_PASSWORD` | heslo ke klíči |
+
+Bez nich Action skončí chybou. Klíč i heslo si zálohujte – bez stejného klíče nejde aplikaci aktualizovat.
+
+### Instalace do telefonu
+1. Zapnout Tailscale (nejlépe Nastavení → Síť → VPN → Tailscale → **Trvale zapnutá VPN**).
+2. V Chrome otevřít `https://nas-doma.tailabba48.ts.net:8443/apk/ukoly.apk`, stáhnout a nainstalovat (Chrome si poprvé řekne o povolení „Instalovat neznámé aplikace“).
+3. Při prvním spuštění potvrdit adresu serveru a povolit upozornění.
+4. Doporučeno: Nastavení → Aplikace → Úkoly → **Alarmy a připomenutí** povolit (přehled chodí na minutu přesně) a **Baterie → Bez omezení** (kontrola novinek na pozadí, hlavně u Xiaomi/Samsung).
+
+### Jak fungují upozornění
+- Android zhruba každých 15 minut spustí `web/public/runners/check.js` (Capacitor Background Runner).
+- Ten si z NASu stáhne `/api/digest` a naplánuje denní přehled na nastavený čas – s každým během se obsah obnoví.
+- Pak se zeptá `/api/changes` na nové položky; vlastní položky telefonu (podle id zařízení) se nehlásí.
+- Aplikace pošle nastavení a přeplánuje i při každém zavření.
+
+### Aktualizace
+Po pushi Action sestaví nové APK (číslo verze = číslo běhu) a přibalí ho do image. Po `docker compose pull && up -d` aplikace sama ukáže lištu „Je tu nová verze“ → Stáhnout → nainstalovat přes starou.
+
 ## Obnova ze zálohy
 ```bash
 cd /volume2/docker/ukoly
@@ -66,6 +91,10 @@ sudo docker compose up -d
 cd server && npm install && npm run dev     # API na :3000
 cd web && npm install && npm run dev        # UI na :5173 (proxy na API)
 cd server && npm test
+
+# Android (potřeba Android Studio / SDK)
+cd web && npx vite build --outDir dist --emptyOutDir && npx cap sync android
+cd web/android && ./gradlew assembleDebug
 ```
 
 ## API (pro Android aplikaci)

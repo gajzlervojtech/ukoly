@@ -65,8 +65,24 @@ test('novinky od daného okamžiku', () => {
   const since = new Date(Date.now() - 1000).toISOString();
   store.createItem(media.id, { title: 'Pelíšky', variant: 'film' });
   const ch = store.changes(since);
-  assert.ok(ch.added.some((i) => i.title === 'Pelíšky' && i.card_name === 'Filmy a seriály'));
+  assert.ok(ch.added.some((i) => i.title === 'Pelíšky' && i.card_name === 'Filmy a seriály' && i.card_preset === 'media'));
   assert.deepStrictEqual(store.changes(null).added, []);
+});
+
+test('novinky bez vlastních položek telefonu', () => {
+  const media = store.listCards().find((c) => c.preset === 'media');
+  const since = new Date(Date.now() - 1000).toISOString();
+  store.createItem(media.id, { title: 'Od Káti', device: 'telefon-k' });
+  store.createItem(media.id, { title: 'Od Vojty', device: 'telefon-v' });
+  const titles = store.changes(since, 'telefon-v').added.map((i) => i.title);
+  assert.ok(titles.includes('Od Káti'));
+  assert.ok(!titles.includes('Od Vojty'));
+});
+
+test('místní čas pro plánování upozornění', () => {
+  assert.strictEqual(store.localNow(new Date('2026-10-15T05:30:00Z')), '2026-10-15T07:30');
+  assert.strictEqual(store.localNow(new Date('2026-12-31T23:10:00Z')), '2027-01-01T00:10');
+  assert.match(store.digest('2026-10-15').now, /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/);
 });
 
 test('kontrola vstupů', () => {

@@ -14,7 +14,7 @@ app.use(express.json({ limit: '256kb' }));
 
 // Android aplikace běží na vlastní adrese (https://localhost), proto povolit CORS.
 // Server je dosažitelný jen doma a přes Tailscale.
-app.use('/api', (req, res, next) => {
+app.use(['/api', '/apk'], (req, res, next) => {
   res.set('Access-Control-Allow-Origin', '*');
   res.set('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
   res.set('Access-Control-Allow-Headers', 'content-type');
@@ -25,9 +25,12 @@ app.use('/api', (req, res, next) => {
 app.get('/healthz', (req, res) => res.json({ ok: true }));
 app.use('/api', api);
 
+// Android aplikace ke stažení (APK přibalí do image GitHub Action), vždy čerstvá.
+app.use('/apk', express.static(path.join(PUBLIC_DIR, 'apk'), { maxAge: 0 }));
+
 if (fs.existsSync(PUBLIC_DIR)) {
   app.use(express.static(PUBLIC_DIR, { index: false, maxAge: '1h' }));
-  app.get(/^\/(?!api).*/, (req, res) => res.sendFile(path.join(PUBLIC_DIR, 'index.html')));
+  app.get(/^\/(?!api|apk).*/, (req, res) => res.sendFile(path.join(PUBLIC_DIR, 'index.html')));
 }
 
 // chyby
