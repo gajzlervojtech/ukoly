@@ -4,3 +4,5 @@ data
 .git
 .github
 *.md
+web/android
+web/dist
