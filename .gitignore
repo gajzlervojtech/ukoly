@@ -3,3 +3,6 @@ server/public/
 data/
 *.log
 .DS_Store
+web/dist/
+apk/ukoly.apk
+*.jks
